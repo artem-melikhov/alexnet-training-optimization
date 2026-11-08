@@ -12,18 +12,18 @@ from .data_utils import make_loaders
 
 class Metrics:
     def __init__(self, device):
-        self.loss = 0.0
-        self.correct = 0
+        self.loss = torch.zeros((), device=device)
+        self.correct = torch.zeros((), dtype=torch.int64, device=device)
         self.samples = 0
 
     def update(self, loss, pred, y):
         count = y.size(0)
-        self.loss += loss.item() * count
-        self.correct += (pred.detach().argmax(dim=1) == y).sum().item()
+        self.loss += loss.detach() * count
+        self.correct += (pred.detach().argmax(dim=1) == y).sum()
         self.samples += count
 
     def values(self):
-        return self.loss / self.samples, self.correct / self.samples
+        return self.loss.item() / self.samples, self.correct.item() / self.samples
 
 
 def prepare_batch(batch, device, preprocess, mark):
