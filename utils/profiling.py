@@ -45,3 +45,27 @@ def capture(data, device, trace_path, *, seed, batch_size, workers, augment=True
         del batches, loader
     loss, acc = metrics.values()
     print(f"Loss за 9 батчей {loss:.4f}, accuracy {acc:.2%}")
+
+
+def benchmark_workers(data, device, *, seed, batch_size, workers):
+    """Measure 30 steps after 10 warmup steps with a fresh model."""
+    model, opt, criterion, scaler, loader, _, preprocess = setup_run(
+        data, device, seed=seed, batch_size=batch_size, workers=workers,
+        augment=True, use_amp=False,
+    )
+    if len(loader) < 40:
+        raise ValueError("Для замера нужно не менее 40 батчей.")
+    model.train()
+    metrics = Metrics(device)
+    batches = iter(loader)
+    try:
+        for step in range(40):
+            if step == 10:
+                torch.cuda.synchronize(device)
+                start = perf_counter()
+            train_batch(next(batches), model, opt, criterion, device, preprocess, metrics,
+                        scaler=scaler)
+        torch.cuda.synchronize(device)
+        return (perf_counter() - start) * 1000 / 30
+    finally:
+        del batches, loader

@@ -113,9 +113,16 @@ def train_dataset_split(ds_train: TensorDataset, train_size: float, random_seed:
     ds_train, ds_test = random_split(ds_train, [train_size, test_size], generator=g)
     return ds_train, ds_test
 
-def create_dataloader(ds: Dataset, batch_size: int = 128, shuffle: bool = False, random_seed: int = 52) -> DataLoader:
+def create_dataloader(
+    ds: Dataset, batch_size: int = 128, shuffle: bool = False,
+    random_seed: int = 52, num_workers: int = 0,
+    persistent_workers: bool = False,
+) -> DataLoader:
     g = torch.Generator().manual_seed(random_seed) # фиксируем рандом для shuffle
-    dl = DataLoader(ds, batch_size=batch_size, shuffle=shuffle, generator=g)
+    dl = DataLoader(
+        ds, batch_size=batch_size, shuffle=shuffle, generator=g,
+        num_workers=num_workers, persistent_workers=persistent_workers,
+    )
     return dl
 
 
@@ -132,6 +139,6 @@ def make_loaders(data, device, *, batch_size, seed, workers, augment):
     train_ready = StandardizationDataset(train_ready, mean, std)
     val = StandardizationDataset(val, mean, std)
     preprocess = None
-    train_loader = create_dataloader(train_ready, batch_size, shuffle=True, random_seed=seed)
+    train_loader = create_dataloader(train_ready, batch_size, shuffle=True, random_seed=seed, num_workers=workers, persistent_workers=workers > 0)
     val_loader = create_dataloader(val, batch_size, random_seed=seed)
     return train_loader, val_loader, preprocess
