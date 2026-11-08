@@ -1,0 +1,3 @@
+,best_val_acc_pct,best_epoch,last_val_acc_pct,last_5_val_acc_pct,train_val_seconds
+FP32,85.06,129.0,84.67,84.65,1405.077324657002
+AMP FP16,85.5,128.0,84.71,84.932,887.5759467680014
