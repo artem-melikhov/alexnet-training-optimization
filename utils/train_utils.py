@@ -37,7 +37,7 @@ def prepare_batch(batch, device, preprocess, mark):
 
 
 def train_batch(batch, model, optimizer, criterion, device, preprocess, metrics,
-                *, use_amp=False, scaler=None, mark=nullcontext):
+                *, scaler, use_amp=False, mark=nullcontext):
     x, y = prepare_batch(batch, device, preprocess, mark)
     with mark("03_forward"):
         with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
@@ -67,6 +67,8 @@ def setup_run(data, device, *, seed, batch_size, workers, augment, use_amp):
 
 def fit(data, device, output_dir, *, epochs, seed, batch_size, workers, use_amp=False):
     """Run one fresh model and persist validation history after every epoch."""
+    if epochs < 1:
+        raise ValueError("Число эпох должно быть не меньше 1.")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     model, opt, criterion, scaler, train_loader, val_loader, preprocess = setup_run(
@@ -76,32 +78,35 @@ def fit(data, device, output_dir, *, epochs, seed, batch_size, workers, use_amp=
     history = []
     best = -1.0
     mode = "AMP FP16" if use_amp else "FP32"
-    for epoch in range(1, epochs + 1):
-        start = perf_counter()
-        model.train()
-        train_metrics = Metrics(device)
-        for batch in train_loader:
-            train_batch(batch, model, opt, criterion, device, preprocess, train_metrics,
-                        use_amp=use_amp, scaler=scaler)
-        train_loss, train_acc = train_metrics.values()
+    try:
+        for epoch in range(1, epochs + 1):
+            start = perf_counter()
+            model.train()
+            train_metrics = Metrics(device)
+            for batch in train_loader:
+                train_batch(batch, model, opt, criterion, device, preprocess, train_metrics,
+                            use_amp=use_amp, scaler=scaler)
+            train_loss, train_acc = train_metrics.values()
 
-        model.eval()
-        val_metrics = Metrics(device)
-        with torch.inference_mode():
-            for batch in val_loader:
-                x, y = prepare_batch(batch, device, preprocess, nullcontext)
-                pred = model(x)
-                val_metrics.update(criterion(pred, y), pred, y)
-        val_loss, val_acc = val_metrics.values()
-        seconds = perf_counter() - start
-        history.append(dict(epoch=epoch, train_loss=train_loss, train_acc=train_acc,
-                            val_loss=val_loss, val_acc=val_acc, seconds=seconds))
-        frame = pd.DataFrame(history)
-        frame.to_csv(output_dir / "history.csv", index=False)
-        if val_acc > best:
-            best = val_acc
-            torch.save(model.state_dict(), output_dir / "best.pth")
-        print(f"{mode} | эпоха {epoch:3d}/{epochs} | train {train_acc:.2%} | "
-              f"val {val_acc:.2%} | val loss {val_loss:.4f} | {seconds:.1f} с")
+            model.eval()
+            val_metrics = Metrics(device)
+            with torch.inference_mode():
+                for batch in val_loader:
+                    x, y = prepare_batch(batch, device, preprocess, nullcontext)
+                    pred = model(x)
+                    val_metrics.update(criterion(pred, y), pred, y)
+            val_loss, val_acc = val_metrics.values()
+            seconds = perf_counter() - start
+            history.append(dict(epoch=epoch, train_loss=train_loss, train_acc=train_acc,
+                                val_loss=val_loss, val_acc=val_acc, seconds=seconds))
+            frame = pd.DataFrame(history)
+            frame.to_csv(output_dir / "history.csv", index=False)
+            if val_acc > best:
+                best = val_acc
+                torch.save(model.state_dict(), output_dir / "best.pth")
+            print(f"{mode} | эпоха {epoch:3d}/{epochs} | train {train_acc:.2%} | "
+                  f"val {val_acc:.2%} | val loss {val_loss:.4f} | {seconds:.1f} с")
 
-    return frame
+        return frame
+    finally:
+        del train_loader

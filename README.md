@@ -14,6 +14,8 @@ AlexNet на NVIDIA RTX 2080 Ti. Модель сохраняет оба слоя
 **84,93% с AMP**. Валидация в обоих запусках была в FP32. Это результаты
 одной пары запусков с seed 52. [Таблица измерений](results/observed_results.csv)
 
+![Время обучения и средняя точность на validation](results/training_comparison.svg)
+
 ## Запуск на сервере
 
 1. Используйте окружение Python 3.10+ с CUDA-версиями PyTorch и torchvision,
@@ -43,10 +45,13 @@ Adam с learning rate 0,0003. Для каждого запуска создаю�
 | `artifacts/comparison.csv` | Итоговое сравнение |
 | `artifacts/validation_accuracy.png` | Точность по эпохам и по времени |
 
-[Журнал экспериментов](docs/experiments.md) · [Запросы и навигация в Perfetto](docs/perfetto.md)
+[Схема AlexNet](docs/alexnet.svg) · [Журнал экспериментов](docs/experiments.md) · [Запросы и навигация в Perfetto](docs/perfetto.md)
 
 История коммитов реконструирует эксперименты от исходного AlexNet до
 обновлённого пайплайна. Числа в таблице собраны во время исходного исследования.
 Запуски текущих ноутбуков сохраняют новые измерения отдельно.
 Исходный код архитектуры — из
 [репозитория CIFAR-10](https://github.com/artem-melikhov/CIFAR-10/tree/85bce29cc2244516b6031185524d65dd693d33a7).
+
+Для локальной проверки кода на небольших синтетических данных выполните
+`python -m pip install pytest`, затем `python -m pytest -q` из корня проекта.
