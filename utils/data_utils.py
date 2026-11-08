@@ -1,7 +1,7 @@
 
 import torch
 from PIL import Image
-from torchvision.transforms import ToTensor, v2
+from torchvision.transforms import PILToTensor, v2
 import os
 import pandas as pd
 from torch.utils.data import Dataset, TensorDataset, DataLoader, random_split
@@ -24,47 +24,53 @@ class AutoAugumentationDataset(Dataset):
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         image, label = self.dataset[index]
 
-        # AutoAugment ожидает тензор uint8 со значениями от 0 до 255.
-        image = (image * 255).round().to(torch.uint8)
-        image = self.augment(image)
-
-        # Возвращаем формат float32 со значениями от 0 до 1, как после ToTensor().
-        image = image.to(torch.float32) / 255
-        return image, label
+        # Загрузчик уже выдаёт uint8 [0, 255]; смена типа здесь не нужна.
+        return self.augment(image), label
 
 
 def calculate_mean_std(ds_train: Subset) -> tuple[torch.Tensor, torch.Tensor]:
-    """Считает среднее и стандартное отклонение по обучающим картинкам."""
+    """Считает статистики исходного train в шкале 0–255 небольшими батчами."""
+    if len(ds_train) == 0:
+        raise ValueError("Нельзя вычислить статистики пустой выборки")
 
-    # берём только train, чтобы картинки из val не влияли на статистики
-    X_train = ds_train.dataset.tensors[0][ds_train.indices]
+    # Не создаём float-копию всего train и не меняем глобальный RNG.
+    loader = DataLoader(
+        ds_train, batch_size=512, shuffle=False,
+        generator=torch.Generator().manual_seed(0),
+    )
+    channel_sum = channel_square_sum = None
+    pixel_count = 0
+    for images, _ in loader:
+        values = images.to(torch.float64)
+        batch_sum = values.sum(dim=(0, 2, 3))
+        batch_square_sum = values.square().sum(dim=(0, 2, 3))
+        if channel_sum is None:
+            channel_sum = batch_sum
+            channel_square_sum = batch_square_sum
+        else:
+            channel_sum += batch_sum
+            channel_square_sum += batch_square_sum
+        pixel_count += values.shape[0] * values.shape[2] * values.shape[3]
 
-    mean = X_train.mean(dim=(0, 2, 3))
-    std = X_train.std(dim=(0, 2, 3), correction=0)
+    mean = channel_sum / pixel_count
+    variance = (channel_square_sum / pixel_count - mean.square()).clamp_min(0)
+    return mean.float(), variance.sqrt().float()
 
-    return mean, std
 
+class BatchStandardizer:
+    """Переводит uint8-батч в float32 и стандартизует на устройстве модели.
 
-class StandardizationDataset(Dataset):
-    """Стандартизует картинки по mean и std обучающей выборки."""
+    Mean и std задаются в шкале исходных uint8-пикселей (0–255).
+    Коэффициенты переносятся на устройство один раз при создании объекта.
+    """
 
-    def __init__(self, dataset: Dataset, mean: torch.Tensor, std: torch.Tensor):
-        self.dataset = dataset
-        # добавляем размеры высоты и ширины, чтобы значения применились к каждому каналу
-        self.mean = mean.reshape(-1, 1, 1)
-        self.std = std.reshape(-1, 1, 1)
+    def __init__(self, mean: torch.Tensor, std: torch.Tensor, device):
+        self.mean = mean.to(device=device, dtype=torch.float32).reshape(1, -1, 1, 1)
+        self.std = std.to(device=device, dtype=torch.float32).reshape(1, -1, 1, 1)
 
-    def __len__(self) -> int:
-        return len(self.dataset)
-
-    def __getitem__(self, index: int):
-        data = self.dataset[index]
-
-        if isinstance(data, tuple):
-            image, label = data
-            return (image - self.mean) / self.std, label
-
-        return (data - self.mean) / self.std
+    def __call__(self, batch: torch.Tensor) -> torch.Tensor:
+        # float() создаёт новый тензор для uint8-входа: исходные данные не меняются.
+        return (batch.float() - self.mean) / self.std
 
 
 def images_to_tensor(
@@ -73,13 +79,14 @@ def images_to_tensor(
     channels: int = 3,
     has_labels: bool = True,
 ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    """Загружает изображения в uint8 [0, 255], без деления на 255."""
 
     # читаем метки правильных классов для фото они сопоставлены с ними по image_id, 
     # который указан в названии файла картинки(для случая когда эти метки есть, то есть train), 
     # иначе читаем id которые идут в файле sample_submission, 
     # чтобы дать предсказания для картинок в том же порядке
     df = pd.read_csv(csv_path)
-    to_tensor = ToTensor()
+    to_tensor = PILToTensor()
     img_tensors = []
 
     for image_id in df["id"]:
@@ -136,9 +143,7 @@ def load_training_data(data_dir, seed):
 def make_loaders(data, device, *, batch_size, seed, workers, augment):
     train, val, mean, std = data
     train_ready = AutoAugumentationDataset(train) if augment else train
-    train_ready = StandardizationDataset(train_ready, mean, std)
-    val = StandardizationDataset(val, mean, std)
-    preprocess = None
+    preprocess = BatchStandardizer(mean, std, device)
     train_loader = create_dataloader(train_ready, batch_size, shuffle=True, random_seed=seed, num_workers=workers, persistent_workers=workers > 0)
     val_loader = create_dataloader(val, batch_size, random_seed=seed)
     return train_loader, val_loader, preprocess
