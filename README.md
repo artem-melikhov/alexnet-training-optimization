@@ -12,9 +12,7 @@ AlexNet на NVIDIA RTX 2080 Ti. Модель сохраняет оба слоя
 
 Средняя точность за последние пять эпох составила **84,30% в FP32** и
 **84,93% с AMP**. Валидация в обоих запусках была в FP32. Это результаты
-одной пары запусков с seed 52. [Таблица измерений](results/observed_results.csv)
-
-![Время обучения и средняя точность на validation](results/training_comparison.svg)
+одной пары запусков с seed 52. [Разбор измерений](docs/experiments.md)
 
 ## Повторный прогон из ноутбуков проекта
 
@@ -29,11 +27,9 @@ AlexNet на NVIDIA RTX 2080 Ti. Модель сохраняет оба слоя
 В повторном прогоне AMP ускорил обучение с валидацией в **1,58 раза**.
 Таблица и график ниже относятся к сохранённым выводам ноутбуков.
 
-[Таблица сравнения](results/reproduced/comparison.csv) ·
-[История FP32](results/reproduced/fp32_history.csv) ·
-[История AMP](results/reproduced/amp_fp16_history.csv)
+[Выполненный ноутбук с обучением](notebooks/02_training.ipynb)
 
-![Точность на validation по эпохам и времени для FP32 и AMP](results/reproduced/validation_accuracy.png)
+![Точность на validation по эпохам и времени для FP32 и AMP](docs/validation_accuracy.png)
 
 ## Запуск на сервере
 
