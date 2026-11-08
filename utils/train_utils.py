@@ -40,13 +40,15 @@ def train_batch(batch, model, optimizer, criterion, device, preprocess, metrics,
                 *, use_amp=False, scaler=None, mark=nullcontext):
     x, y = prepare_batch(batch, device, preprocess, mark)
     with mark("03_forward"):
-        pred = model(x)
-        loss = criterion(pred, y)
+        with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
+            pred = model(x)
+            loss = criterion(pred, y)
     with mark("04_backward"):
         optimizer.zero_grad()
-        loss.backward()
+        scaler.scale(loss).backward()
     with mark("05_optimizer"):
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
     with mark("06_metrics"):
         metrics.update(loss, pred, y)
 
@@ -56,7 +58,7 @@ def setup_run(data, device, *, seed, batch_size, workers, augment, use_amp):
     model = AlexNet().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
     criterion = nn.CrossEntropyLoss()
-    scaler = None
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     train_loader, val_loader, preprocess = make_loaders(
         data, device, batch_size=batch_size, seed=seed, workers=workers, augment=augment,
     )

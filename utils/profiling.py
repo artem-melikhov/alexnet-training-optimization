@@ -18,6 +18,7 @@ def capture(data, device, trace_path, *, seed, batch_size, workers, augment=True
         raise ValueError("Для профиля нужно не менее 9 батчей.")
     model.train()
     metrics = Metrics(device)
+    initial_scale = scaler.get_scale()
 
     def export(prof):
         sort_key = "self_cuda_time_total" if device.type == "cuda" else "self_cpu_time_total"
@@ -43,6 +44,8 @@ def capture(data, device, trace_path, *, seed, batch_size, workers, augment=True
                 prof.step()
     finally:
         del batches, loader
+    if scaler.get_scale() < initial_scale:
+        print("GradScaler пропустил одно или несколько обновлений за 9 шагов.")
     loss, acc = metrics.values()
     print(f"Loss за 9 батчей {loss:.4f}, accuracy {acc:.2%}")
 
