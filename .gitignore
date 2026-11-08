@@ -1,0 +1,10 @@
+
+data
+artifacts/
+.ipynb_checkpoints/
+__pycache__/
+.pytest_cache/
+.venv/
+*.pth
+training_trace*.json
+.DS_Store
