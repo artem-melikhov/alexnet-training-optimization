@@ -1,10 +1,14 @@
+# Датасет и окружение могут быть папками или ссылками.
+/data
+/.venv
 
-data
-artifacts/
+# Сырые результаты запуска. Материалы для публикации лежат в results/.
+/artifacts/
+*.pth
+training_trace*.json
+
+# Служебные файлы.
 .ipynb_checkpoints/
 __pycache__/
 .pytest_cache/
-.venv/
-*.pth
-training_trace*.json
 .DS_Store
