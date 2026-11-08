@@ -6,6 +6,8 @@
 /artifacts/
 *.pth
 training_trace*.json
+!/docs/traces/training_trace_fp32.json
+!/docs/traces/training_trace_amp_fp16.json
 
 # Служебные файлы.
 .ipynb_checkpoints/

@@ -31,6 +31,13 @@ AlexNet на NVIDIA RTX 2080 Ti. Модель сохраняет оба слоя
 
 ![Точность на validation по эпохам и времени для FP32 и AMP](docs/validation_accuracy.png)
 
+## Трейсы для Perfetto
+
+Скачайте JSON нужного режима и откройте его в Perfetto через **Open trace file**.
+
+- [Трейс FP32](docs/traces/training_trace_fp32.json)
+- [Трейс AMP FP16](docs/traces/training_trace_amp_fp16.json)
+
 ## Запуск на сервере
 
 1. Используйте окружение Python 3.10+ с CUDA-версиями PyTorch и torchvision,
